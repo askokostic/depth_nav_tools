@@ -190,11 +190,11 @@ class CliffDetector {
   unsigned depth_image_step_col_; ///< Columns step in depth processing (px).
   float    ground_margin_;        ///< Margin for ground points feature detector (m)
 
-  bool depth_sensor_params_update;
+  bool depth_sensor_params_update = false;
   /// Class for managing sensor_msgs/CameraInfo messages
   image_geometry::PinholeCameraModel camera_model_;
   /// Calculated distances to ground for every row of depth image in mm
-  std::vector<unsigned int> dist_to_ground_;
+  std::vector<double> dist_to_ground_;
   std::vector<double> tilt_compensation_factor_;
   std::vector<double> delta_row_;
 

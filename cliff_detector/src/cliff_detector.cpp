@@ -251,15 +251,15 @@ void CliffDetector::findCliffInDepthImage(const sensor_msgs::msg::Image::ConstSh
     // ROS_ERROR("Block points threshold is too big. Maximum admissible value will be set.");
     block_points_thresh_ = block_size_*block_size_ / depth_image_step_col_ / depth_image_step_row_;
   }
-
+  
   // Vector for block, constains rows, cols, depth values
-  std::vector<std::vector<int> >tpoints (block_size_ * block_size_, std::vector<int>(3));
+  std::vector<std::vector<double>> tpoints (block_size_ * block_size_, std::vector<double>(3));
 
   // Rows, cols and depth values for points which apply to stairs
-  std::vector<std::vector<int> > stairs_points;
+  std::vector<std::vector<double> > stairs_points;
 
   // Indicates which point from tpoints vector corresponds to which pixel in block
-  std::vector<int> px_nr;
+  std::vector<double> px_nr;
   px_nr.resize(block_size_ * block_size_);
 
   // Four pixels in center of block
@@ -330,7 +330,7 @@ void CliffDetector::findCliffInDepthImage(const sensor_msgs::msg::Image::ConstSh
     }
   }
 
-  std::vector<std::vector<int> >::iterator it;
+  std::vector<std::vector<double> >::iterator it;
   geometry_msgs::msg::Point32 pt;
 
   if (publish_depth_enable_) {
@@ -357,8 +357,11 @@ void CliffDetector::findCliffInDepthImage(const sensor_msgs::msg::Image::ConstSh
     // Add point to message
     stairs_points_msg_.polygon.points.push_back(pt);
 
+    double index_dl = row_size * (*it)[Row] + (*it)[Col];
+    int index = static_cast<int>(index_dl);
+
     if (publish_depth_enable_) {
-      new_depth_row[row_size * (*it)[Row] + (*it)[Col]] = 10000U;
+      new_depth_row[index] = 10000U;
     }
   }
 }
