@@ -1,13 +1,11 @@
-#include <nav_layer_from_points/costmap_layer.h>
+#include "nav_layer_from_points/costmap_layer.h"
 
 #include <fstream>
 
-PLUGINLIB_EXPORT_CLASS(nav_layer_from_points::NavLayerFromPoints, nav2_costmap_2d::Layer)
 
 namespace nav_layer_from_points {
 
-NavLayerFromPoints::NavLayerFromPoints()
-  : tf_buffer_(node_->get_clock())
+NavLayerFromPoints::NavLayerFromPoints() : points_keep_time_(rclcpp::Duration::from_seconds(0))
 {
   layered_costmap_ = nullptr;
 }
@@ -16,12 +14,20 @@ void NavLayerFromPoints::onInitialize() {
   current_ = true;
   first_time_ = true;
 
-  node_->declare_parameter(name_ + "." + "enabled", true);
-  node_->declare_parameter(name_ + "." + "keep_time", 0.75);
-  node_->declare_parameter(name_ + "." + "point_radius", 0.2);
-  node_->declare_parameter(name_ + "." + "robot_radius", 0.6);
+  auto node = node_.lock(); 
+  declareParameter("enabled", rclcpp::ParameterValue(true));
+  declareParameter("keep_time", rclcpp::ParameterValue(0.75));
+  declareParameter("point_radius",rclcpp::ParameterValue( 0.2));
+  declareParameter("robot_radius",rclcpp::ParameterValue( 0.6));
 
-  sub_points_ = node_->create_subscription<geometry_msgs::msg::PolygonStamped>(
+  node->get_parameter(name_ + "." + "enabled", enabled_);
+  double keep_time;
+  node->get_parameter(name_ + "." + "keep_time", keep_time);
+  points_keep_time_ = rclcpp::Duration::from_seconds(keep_time);
+  node->get_parameter(name_ + "." + "point_radius", point_radius_);
+  node->get_parameter(name_ + "." + "robot_radius", robot_radius_);
+
+  sub_points_ = node->create_subscription<geometry_msgs::msg::PolygonStamped>(
     "points", 1, std::bind(&NavLayerFromPoints::pointsCallback, this, std::placeholders::_1));
 }
 
@@ -31,12 +37,16 @@ void NavLayerFromPoints::pointsCallback(const geometry_msgs::msg::PolygonStamped
 }
 
 void NavLayerFromPoints::clearTransformedPoints() {
+  auto node = node_.lock();
+
   if (transformed_points_.size() > 10000)
     transformed_points_.clear();
 
+  // printf("%f \n", rclcpp::Duration::seconds(points_keep_time_));
+
   auto p_it = transformed_points_.begin();
   while (p_it != transformed_points_.end()) {
-    if (node_->get_clock()->now() - (*p_it).header.stamp > points_keep_time_) {
+    if (node->get_clock()->now() - (*p_it).header.stamp > points_keep_time_) {
       p_it = transformed_points_.erase(p_it);
     }
     else {
@@ -49,8 +59,7 @@ void NavLayerFromPoints::updateBounds([[maybe_unused]] double origin_x,
                                       [[maybe_unused]] double origin_y,
                                       [[maybe_unused]] double origin_z,
                                       double* min_x, double* min_y, double* max_x, double* max_y) {
-  std::lock_guard<std::recursive_mutex> lk(lock_);
-
+  auto node = node_.lock(); 
   std::string global_frame = layered_costmap_->getGlobalFrameID();
 
   // Check if there are points to remove in transformed_points list and if so, then remove it
@@ -70,7 +79,7 @@ void NavLayerFromPoints::updateBounds([[maybe_unused]] double origin_x,
       pt.point.z =  tpt.point.z;
       pt.header.frame_id = points_list_.header.frame_id;
 
-      tf_buffer_.transform(pt, out_pt, global_frame);
+      tf_->transform(pt, out_pt, global_frame);
       tpt.point.x = out_pt.point.x;
       tpt.point.y = out_pt.point.y;
       tpt.point.z = out_pt.point.z;
@@ -79,15 +88,15 @@ void NavLayerFromPoints::updateBounds([[maybe_unused]] double origin_x,
       transformed_points_.push_back(tpt);
     }
     catch(tf2::LookupException& ex) {
-      RCLCPP_ERROR(node_->get_logger(), "No Transform available Error: %s\n", ex.what());
+      RCLCPP_ERROR(node->get_logger(), "No Transform available Error: %s\n", ex.what());
       continue;
     }
     catch(tf2::ConnectivityException& ex) {
-      RCLCPP_ERROR(node_->get_logger(), "Connectivity Error: %s\n", ex.what());
+      RCLCPP_ERROR(node->get_logger(), "Connectivity Error: %s\n", ex.what());
       continue;
     }
     catch(tf2::ExtrapolationException& ex) {
-      RCLCPP_ERROR(node_->get_logger(), "Extrapolation Error: %s\n", ex.what());
+      RCLCPP_ERROR(node->get_logger(), "Extrapolation Error: %s\n", ex.what());
       continue;
     }
   }
@@ -127,7 +136,7 @@ void NavLayerFromPoints::updateBoundsFromPoints(double* min_x, double* min_y, do
 
 void NavLayerFromPoints::updateCosts([[maybe_unused]] nav2_costmap_2d::Costmap2D& master_grid,
                                      int min_i, int min_j, int max_i, int max_j) {
-  std::lock_guard<std::recursive_mutex> lk(lock_);
+  auto node = node_.lock(); 
 
   if (!enabled_)
     return;
@@ -174,3 +183,6 @@ void NavLayerFromPoints::updateCosts([[maybe_unused]] nav2_costmap_2d::Costmap2D
 }
 
 } // namespace nav_layer_from_points
+
+#include "pluginlib/class_list_macros.hpp"
+PLUGINLIB_EXPORT_CLASS(nav_layer_from_points::NavLayerFromPoints, nav2_costmap_2d::Layer)

@@ -9,10 +9,9 @@
 #include "nav2_costmap_2d/layered_costmap.hpp"
 #include "nav2_costmap_2d/footprint.hpp"
 
-#include <pluginlib/class_list_macros.hpp>
-
-#include <geometry_msgs/msg/polygon_stamped.hpp>
-#include <geometry_msgs/msg/point_stamped.hpp>
+#include "geometry_msgs/msg/polygon_stamped.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 #include <tf2_ros/buffer.h>
 
@@ -37,6 +36,8 @@ public:
 
   bool isDiscretized() { return false; }
 
+  virtual bool isClearable() {return false;}
+
 protected:
 
   void pointsCallback(const geometry_msgs::msg::PolygonStamped::SharedPtr points);
@@ -51,12 +52,11 @@ protected:
 
   geometry_msgs::msg::PolygonStamped points_list_;  ///< List of received points
 
-  tf2_ros::Buffer tf_buffer_;
 
   std::list<geometry_msgs::msg::PointStamped> transformed_points_;
 
   // After this time points will be delete
-  rclcpp::Duration points_keep_time_{0};
+  rclcpp::Duration points_keep_time_;
 
   std::recursive_mutex lock_;
   bool first_time_;
